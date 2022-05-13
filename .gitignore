@@ -5,3 +5,4 @@ covearge/
 .vscode/
 .env
 package-lock.json
+src/js/secret.js
