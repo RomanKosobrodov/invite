@@ -25,11 +25,14 @@ function AuthenticateUser(success, failure) {
   SignIn(username, password, success, failure);
 }
 
-window.onload = function () {
-  console.log("window is loading ...");
-  let f = document.getElementById("sign-in-form");
-  f.addEventListener("submit", function (e) {
-    e.preventDefault();
-    AuthenticateUser(onSignIn, onFailedSignIn);
-  });
-};
+window.addEventListener(
+  "load",
+  () => {
+    let f = document.getElementById("sign-in-form");
+    f.addEventListener("submit", function (e) {
+      e.preventDefault();
+      AuthenticateUser(onSignIn, onFailedSignIn);
+    });
+  },
+  false
+);
