@@ -5,12 +5,7 @@ import {
   AuthenticationDetails,
 } from "amazon-cognito-identity-js";
 
-export const SignIn = (
-  username,
-  password,
-  callbackSuccess,
-  callbackFailure
-) => {
+async function SignIn(username, password) {
   let userPool = new CognitoUserPool(AUTH_DATA);
   const user = {
     Username: username,
@@ -24,8 +19,33 @@ export const SignIn = (
   };
   let authenticationDetails = new AuthenticationDetails(authenticationData);
 
-  cognitoUser.authenticateUser(authenticationDetails, {
-    onFailure: callbackFailure,
-    onSuccess: callbackSuccess,
+  return new Promise(function (resolve, reject) {
+    cognitoUser.authenticateUser(authenticationDetails, {
+      onFailure: reject,
+      onSuccess: resolve,
+    });
   });
-};
+}
+
+window.addEventListener(
+  "load",
+  async () => {
+    let f = document.getElementById("sign-in-form");
+    f.addEventListener("submit", function (e) {
+      e.preventDefault();
+      const username = document.getElementById("username").value;
+      const password = document.getElementById("password").value;
+      SignIn(username, password)
+        .then((r) => {
+          const { accessToken, refreshToken } = r;
+          console.log(`access: ${JSON.stringify(accessToken)}`);
+          console.log(`refresh: ${JSON.stringify(refreshToken)}`);
+        })
+        .catch((e) => {
+          console.log("Authenticatin failed with the following error:");
+          console.log(e);
+        });
+    });
+  },
+  false
+);

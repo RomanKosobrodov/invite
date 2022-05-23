@@ -4,5 +4,7 @@ dist/
 covearge/
 .vscode/
 .env
+.parcel-cache
 package-lock.json
+
 src/js/secret.js
