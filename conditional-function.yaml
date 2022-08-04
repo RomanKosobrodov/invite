@@ -1,0 +1,71 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Conditionally attach a CloudFront function to a distribution
+
+Parameters:
+  AppendIndexHtml:
+    Type: String
+    Default: Disabled
+    AllowedValues:
+      - Enabled
+      - Disabled
+    Description: >
+      If enabled all requests ending with "/" will be appended with "index.html".
+
+Conditions:
+  CreateRewriteFunction: !Equals
+    - !Ref AppendIndexHtml
+    - Enabled
+
+Resources:
+  RewriteFunction:
+    Type: AWS::CloudFront::Function
+    Condition: CreateRewriteFunction
+    Properties:
+      Name: "append-index-to-uri"
+      AutoPublish: true
+      FunctionCode: |
+        function handler(event) {
+           if (event.request.uri.endsWith('/')) {
+           event.request.uri += 'index.html';
+           }
+           else if (!event.request.uri.includes('.')) {
+           event.request.uri += '/index.html';
+           }
+           return event.request;
+         }
+      FunctionConfig:
+        Comment: append "index.html" to URL ending with "/"
+        Runtime: cloudfront-js-1.0
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: "Distribution for with conditional CloudFront function"
+        DefaultRootObject: "index.html"
+        Enabled: true
+        IPV6Enabled: true
+        HttpVersion: http2
+        Origins:
+          - Id: cloudfront-default-origin
+            DomainName: aws.amazon.com
+            CustomOriginConfig:
+              HTTPPort: 80
+              OriginProtocolPolicy: match-viewer
+        DefaultCacheBehavior:
+          DefaultTTL: 300
+          ForwardedValues:
+            QueryString: false
+          TargetOriginId: cloudfront-default-origin
+          ViewerProtocolPolicy: allow-all
+          FunctionAssociations: !If
+            - CreateRewriteFunction
+            - - EventType: viewer-request
+                FunctionARN: !GetAtt RewriteFunction.FunctionARN
+            - !Ref AWS::NoValue
+        Logging: !Ref AWS::NoValue
+
+Outputs:
+  Distribution:
+    Description: Cloudfront Distribution Domain Name
+    Value: !GetAtt CloudFrontDistribution.DomainName

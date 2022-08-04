@@ -42,7 +42,7 @@ window.addEventListener(
           console.log(`refresh: ${JSON.stringify(refreshToken)}`);
         })
         .catch((e) => {
-          console.log("Authenticatin failed with the following error:");
+          console.log("Authentication failed with the following error:");
           console.log(e);
         });
     });

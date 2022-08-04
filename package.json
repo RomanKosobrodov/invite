@@ -14,15 +14,15 @@
   "homepage": "https://github.com/RomanKosobrodov/invite#readme",
   "scripts": {
     "start": "parcel ./*.html",
+    "dependencies": "pip install python-jose[cryptography] --target ./dependencies/python",
     "prebuild": "rimraf dist",
-    "build": "parcel build src/*.html"
+    "build": "parcel build frontend/*.html"
   },
   "devDependencies": {
     "parcel": "latest",
     "rimraf": "^3.0.2"
   },
   "dependencies": {
-    "amazon-cognito-identity-js": "^5.2.8",
-    "openpgp": "^5.2.1"
+    "amazon-cognito-identity-js": "^5.2.8"
   }
 }

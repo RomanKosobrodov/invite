@@ -1,0 +1,70 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Create Cognito User pool
+
+Parameters:
+  UserPoolName:
+    Type: String
+    Description: Name for the Cognito User Pool to be created
+  ReplyToEmail:
+    Type: String
+    Description: Return email address for the invitation email
+
+Resources:
+  NewUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: admin_only
+            Priority: 1
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+        UnusedAccountValidityDays: 60
+      AliasAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      DeviceConfiguration:
+        ChallengeRequiredOnNewDevice: false
+        DeviceOnlyRememberedOnUserPrompt: false
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+        ReplyToEmailAddress: !Ref ReplyToEmail
+      UserPoolName: !Ref UserPoolName
+      UsernameConfiguration:
+        CaseSensitive: false
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      AccessTokenValidity: 12
+      ClientName: !Sub "client-for-${UserPoolName}"
+      EnableTokenRevocation: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      GenerateSecret: false
+      IdTokenValidity: 12
+      RefreshTokenValidity: 24
+      TokenValidityUnits:
+        AccessToken: "hours"
+        IdToken: "hours"
+        RefreshToken: "hours"
+      UserPoolId: !Ref NewUserPool
+
+Outputs:
+  UserPoolID:
+    Value: !Ref NewUserPool
+    Description: ID of the created user pool
+  ARN:
+    Value: !GetAtt NewUserPool.Arn
+    Description: Amazon Resource Name of the user pool
+  ProviderName:
+    Value: !GetAtt NewUserPool.ProviderName
+    Description: Name of the User Pool Provider
+  ProviderURL:
+    Value: !GetAtt NewUserPool.ProviderURL
+    Description: URL of the user pool
+  ClientID:
+    Value: !Ref UserPoolClient
+    Description: User Pool Client ID

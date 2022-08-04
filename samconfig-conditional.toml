@@ -1,0 +1,12 @@
+version = 0.1
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "conditional-cloudfront-function-rewrite"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-5o4w3yiq87bz"
+s3_prefix = "conditional-cloudfront-function-rewrite"
+region = "ap-southeast-2"
+profile = "sam"
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "AppendIndexHtml=\"Enabled\""
+image_repositories = []

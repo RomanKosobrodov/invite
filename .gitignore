@@ -1,10 +1,11 @@
 node_modules/
 .cache/
 dist/
-covearge/
 .vscode/
 .env
 .parcel-cache
+.aws-sam
 package-lock.json
 
-src/js/secret.js
+frontend/js/secret.js
+dependencies/

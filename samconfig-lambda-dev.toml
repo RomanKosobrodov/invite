@@ -1,0 +1,12 @@
+version = 0.1
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "url-lambda-authorise-dev"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-1xjmpe478ykv0"
+s3_prefix = "url-lambda-authorise"
+region = "us-east-1"
+profile = "sam"
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+parameter_overrides = "UserPoolName=\"user-pool-for-lambda-url\" ReplyToEmail=\"admin@kosobrodov.net\" FunctionName=\"edge-lambda-verify-token-dev\""
+image_repositories = []
