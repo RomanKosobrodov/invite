@@ -2,10 +2,10 @@ version = 0.1
 [default]
 [default.deploy]
 [default.deploy.parameters]
-stack_name = "multi-origin-cloudfront"
+stack_name = "invite-prototype-with-edge-lambda"
 s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-1xjmpe478ykv0"
-s3_prefix = "multi-origin-cloudfront"
+s3_prefix = "invite"
 region = "us-east-1"
 profile = "sam"
-capabilities = ["CAPABILITY_IAM", "CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND"]
+capabilities = "CAPABILITY_NAMED_IAM"
 image_repositories = []

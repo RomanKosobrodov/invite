@@ -1,131 +1,30 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  Restrict access to static web site resources to users authenticated by Cognito User Pool
-
-Metadata:
-  AWS::CloudFormation::Interface:
-    ParameterGroups:
-      - Label:
-          default: "Domain Parameters"
-        Parameters:
-          - HostedZoneId
-          - DomainName
-      - Label:
-          default: "Cognito User Pool"
-        Parameters:
-          - UserPoolName
-          - ReplyToEmail
-      - Label:
-          default: "User for Programmatic Access"
-        Parameters:
-          - NewUserName
-    ParameterLabels:
-      HostedZoneId:
-        default: "Hosted Zone ID"
-      DomainName:
-        default: "Domain Name"
-      NewUserName:
-        default: "User Name"
-      UserPoolName:
-        default: "User Pool Name"
-      ReplyToEmail:
-        default: "Reply-to Email"
-
-Parameters:
-  HostedZoneId:
-    Type: AWS::Route53::HostedZone::Id
-    Default: ZUNCTQU4Z3J9K
-    Description: >
-      Existing Hosted Zone ID. 
-      If this list is empty then you have not created a hosted zone in AWS Route yet.
-  DomainName:
-    Type: String
-    Default: invite.kosobrodov.net
-    Description: >
-      Full domain name which you want to use for hosting this website.
-      For example, 'blog.your-awesome-site.org' or 'wiki.organisation.com'
-    AllowedPattern: ^\w[-\w]+(?:[.\w][-\w]+)+$
-  NewUserName:
-    Type: String
-    Default: invite-content-creator
-    Description: >
-      Provide a name for the AWS user which will be created for updating the site from the command line. 
-      This name must be unique in your account.
-    AllowedPattern: ^[@.,\=\-\*\+\w]+$
-  UserPoolName:
-    Type: String
-    Default: invite-user-pool.kosobrodov.net
-    Description: Name for the Cognito User Pool to be created
-  ReplyToEmail:
-    Type: String
-    Default: admin@kosobrodov.net
-    Description: Return email address for the invitation email
+  Prototype for restricting access to static web site resources to users authenticated by Cognito User Pool
 
 Resources:
-  UserPool:
-    Type: AWS::Cognito::UserPool
-    Properties:
-      AccountRecoverySetting:
-        RecoveryMechanisms:
-          - Name: admin_only
-            Priority: 1
-      AdminCreateUserConfig:
-        AllowAdminCreateUserOnly: true
-        UnusedAccountValidityDays: 60
-      AliasAttributes:
-        - email
-      AutoVerifiedAttributes:
-        - email
-      DeviceConfiguration:
-        ChallengeRequiredOnNewDevice: false
-        DeviceOnlyRememberedOnUserPrompt: false
-      EmailConfiguration:
-        EmailSendingAccount: COGNITO_DEFAULT
-        ReplyToEmailAddress: !Ref ReplyToEmail
-      UserPoolName: !Ref UserPoolName
-      UsernameConfiguration:
-        CaseSensitive: false
-
-  UserPoolClient:
-    Type: AWS::Cognito::UserPoolClient
-    Properties:
-      AccessTokenValidity: 12
-      ClientName: !Sub "client-for-${UserPoolName}"
-      EnableTokenRevocation: false
-      ExplicitAuthFlows:
-        - ALLOW_USER_PASSWORD_AUTH
-        - ALLOW_REFRESH_TOKEN_AUTH
-      GenerateSecret: false
-      IdTokenValidity: 12
-      RefreshTokenValidity: 24
-      TokenValidityUnits:
-        AccessToken: "hours"
-        IdToken: "hours"
-        RefreshToken: "hours"
-      UserPoolId: !Ref UserPool
-
-  ProtectedBucket:
+  RestrictedBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "${DomainName}-protected"
-  ProtectedBucketPolicy:
+      BucketName: "invite-kosobrodov-net-restricted"
+  RestrictedBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
-      Bucket: !Ref ProtectedBucket
+      Bucket: !Ref RestrictedBucket
       PolicyDocument:
         Version: 2012-10-17
         Statement:
           - Action: s3:GetObject
             Effect: Allow
-            Resource: !Sub "arn:aws:s3:::${ProtectedBucket}/*"
+            Resource: !Sub "arn:aws:s3:::${RestrictedBucket}/*"
             Principal:
               CanonicalUser: !GetAtt "CloudFrontOAI.S3CanonicalUserId"
 
   FrontendBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "${DomainName}-frontend"
+      BucketName: "invite-kosobrodov-net-frontend"
   FrontendBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -142,7 +41,7 @@ Resources:
   PublicBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "${DomainName}-public"
+      BucketName: "invite-kosobrodov-net-public"
   PublicBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -156,38 +55,46 @@ Resources:
             Principal:
               CanonicalUser: !GetAtt "CloudFrontOAI.S3CanonicalUserId"
 
-  SiteDNSRecord:
-    Type: AWS::Route53::RecordSet
+  LambdaEdgeFunctionRole:
+    Type: "AWS::IAM::Role"
     Properties:
-      HostedZoneId: !Ref HostedZoneId
-      Name: !Sub "${DomainName}"
-      Type: A
-      AliasTarget:
-        DNSName: !GetAtt CloudFrontDistribution.DomainName
-        HostedZoneId: Z2FDTNDATAQYW2
+      RoleName: LambdaEdgeFunctionRoleForInvitePrototype
+      Path: "/"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "AllowLambdaServiceToAssumeRole"
+            Effect: "Allow"
+            Action:
+              - "sts:AssumeRole"
+            Principal:
+              Service:
+                - "lambda.amazonaws.com"
+                - "edgelambda.amazonaws.com"
 
-  Certificate:
-    Type: AWS::CertificateManager::Certificate
+  VerifyTokenFunction:
+    Type: AWS::Serverless::Function
     Properties:
-      DomainName: !Sub "${DomainName}"
-      DomainValidationOptions:
-        - DomainName: !Sub "${DomainName}"
-          HostedZoneId: !Ref HostedZoneId
-      ValidationMethod: DNS
+      Role: !GetAtt LambdaEdgeFunctionRole.Arn
+      Runtime: python3.9
+      CodeUri: functions/verify/
+      Handler: verify.handler
+      Timeout: 5
+      AutoPublishAlias: live
 
   CloudFrontOAI:
     Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
     Properties:
       CloudFrontOriginAccessIdentityConfig:
-        Comment: !Sub "${DomainName}-origin-access"
+        Comment: !Sub "invite-kosobrodov-net-origin-access"
 
   CloudFrontDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
       DistributionConfig:
-        Aliases:
-          - !Sub "${DomainName}"
-        Comment: !Sub "Distribution for ${DomainName}"
+        Comment: "Distribution for invite-kosobrodov-net"
         DefaultRootObject: "index.html"
         Enabled: true
         IPV6Enabled: true
@@ -203,8 +110,8 @@ Resources:
             DomainName: !GetAtt PublicBucket.RegionalDomainName
             S3OriginConfig:
               OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${CloudFrontOAI}"
-          - Id: protected-website-bucket
-            DomainName: !GetAtt ProtectedBucket.RegionalDomainName
+          - Id: restricted-website-bucket
+            DomainName: !GetAtt RestrictedBucket.RegionalDomainName
             S3OriginConfig:
               OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${CloudFrontOAI}"
           - Id: authorisation-frontend-bucket
@@ -212,59 +119,22 @@ Resources:
             S3OriginConfig:
               OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${CloudFrontOAI}"
         CacheBehaviors:
-          - PathPattern: authorise/*
+          - PathPattern: authentication/*
             TargetOriginId: authorisation-frontend-bucket
             ViewerProtocolPolicy: redirect-to-https
             CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
-          - PathPattern: protected/*
-            TargetOriginId: protected-website-bucket
+          - PathPattern: restricted/*
+            TargetOriginId: restricted-website-bucket
             ViewerProtocolPolicy: redirect-to-https
             CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
-        ViewerCertificate:
-          AcmCertificateArn: !Ref Certificate
-          SslSupportMethod: sni-only
+            LambdaFunctionAssociations:
+              - EventType: viewer-request
+                LambdaFunctionARN: !Ref VerifyTokenFunction.Version
         Logging: !Ref AWS::NoValue
 
-  NewUser:
-    Type: AWS::IAM::User
-    Properties:
-      UserName: !Ref NewUserName
-      Policies:
-        - PolicyName: !Sub "${NewUserName}-can-access-${DomainName}"
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - "s3:PutObject"
-                  - "s3:GetObject"
-                  - "s3:ListBucket"
-                  - "s3:DeleteObject"
-                Resource:
-                  - !Sub "arn:aws:s3:::${PublicBucket}"
-                  - !Sub "arn:aws:s3:::${PublicBucket}/*"
-                  - !Sub "arn:aws:s3:::${ProtectedBucket}"
-                  - !Sub "arn:aws:s3:::${ProtectedBucket}/*"
-
-  UserAccessKey:
-    Type: AWS::IAM::AccessKey
-    Properties:
-      Serial: 1
-      Status: Active
-      UserName: !Ref NewUser
-
 Outputs:
-  UserPoolID:
-    Value: !Ref UserPool
-    Description: ID of the created user pool
-  ProviderURL:
-    Value: !GetAtt UserPool.ProviderURL
-    Description: URL of the user pool
-  ClientID:
-    Value: !Ref UserPoolClient
-    Description: User Pool Client ID
-  ProtectedBucketName:
-    Value: !Ref ProtectedBucket
+  RestrictedBucketName:
+    Value: !Ref RestrictedBucket
     Description: Name of the S3 bucket to store content intended for authorised users
   FrontendBucketName:
     Value: !Ref FrontendBucket
@@ -272,11 +142,6 @@ Outputs:
   PublicBucketName:
     Value: !Ref PublicBucket
     Description: Name of the S3 bucket to store public content of the website
-  AccessKey:
-    Value: !Ref UserAccessKey
-    Description: Access Key required to update the website programmatically using AWS CLI
-  SecretKey:
-    Value: !GetAtt UserAccessKey.SecretAccessKey
-    Description: >
-      Secret Access Key which together with AccessKey provide programmatic access to the bucket
-      that stores the web site.
+  Distribution:
+    Value: !GetAtt CloudFrontDistribution.DomainName
+    Description: CloudFront Distribution URL

@@ -16,7 +16,7 @@
     "start": "parcel ./*.html",
     "dependencies": "pip install python-jose[cryptography] --target ./dependencies/python",
     "prebuild": "rimraf dist",
-    "build": "parcel build frontend/*.html"
+    "build": "parcel build frontend/*.html --public-url ./"
   },
   "devDependencies": {
     "parcel": "latest",

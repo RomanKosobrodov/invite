@@ -31,6 +31,7 @@ window.addEventListener(
   "load",
   async () => {
     let f = document.getElementById("sign-in-form");
+    const params = new URLSearchParams(document.location.search);
     f.addEventListener("submit", function (e) {
       e.preventDefault();
       const username = document.getElementById("username").value;
@@ -40,12 +41,29 @@ window.addEventListener(
           const { accessToken, refreshToken } = r;
           console.log(`access: ${JSON.stringify(accessToken)}`);
           console.log(`refresh: ${JSON.stringify(refreshToken)}`);
+          const max_age =
+            accessToken.payload.exp - accessToken.payload.auth_time;
+          document.cookie = `token=${accessToken.jwtToken}; Secure; SameSite=Lax; Path=/; Max-Age=${accessToken.payload.exp}`;
+          sessionStorage.setItem("refresh_token", refreshToken.token);
+          const resource_uri = params.get("f");
+          if (resource_uri) {
+            console.log("redirecting to '" + resource_uri + "'");
+            window.location.replace(resource_uri);
+          }
         })
         .catch((e) => {
-          console.log("Authentication failed with the following error:");
-          console.log(e);
+          console.error("Authentication failed with the following error:");
+          console.error(e);
         });
     });
+    if (params.get("expired")) {
+      console.log("Token is expired");
+      // refresh token
+    }
+    const error_message = params.get("error");
+    if (error_message) {
+      console.error(error_message);
+    }
   },
   false
 );
