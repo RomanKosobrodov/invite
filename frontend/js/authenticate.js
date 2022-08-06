@@ -1,4 +1,4 @@
-import { AUTH_DATA } from "./secret";
+import { AUTH_DATA } from "./secret"; // TODO: get secrets from CloudFront Lambda@Edge on '/<random>'
 import {
   CognitoUserPool,
   CognitoUser,

@@ -3,6 +3,32 @@ Transform: AWS::Serverless-2016-10-31
 Description: >
   Prototype for restricting access to static web site resources to users authenticated by Cognito User Pool
 
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Cognito User Pool"
+        Parameters:
+          - UserPoolURL
+          - ClientID
+    ParameterLabels:
+      UserPoolURL:
+        default: "User Pool URL"
+      ClientID:
+        default: "Client ID"
+
+Parameters:
+  UserPoolURL:
+    Type: String
+    Description: >
+      URL of exiting Cognito User Pool
+    Default: "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_D7WnK3MWM"
+  ClientID:
+    Type: String
+    Description: >
+      ID of the client for the User Pool
+    Default: "7qusi4nt76n9bsrfr1oiubfjlg"
+
 Resources:
   RestrictedBucket:
     Type: AWS::S3::Bucket
@@ -55,8 +81,16 @@ Resources:
             Principal:
               CanonicalUser: !GetAtt "CloudFrontOAI.S3CanonicalUserId"
 
+  UserPoolParameters:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Description: User Pool Parameters (URL and Client ID) as JSON encoded string
+      Name: invite-user-pool-parameters
+      Type: String
+      Value: !Sub "{'iss': '${UserPoolURL}', 'cid': '${ClientID}'}"
+
   LambdaEdgeFunctionRole:
-    Type: "AWS::IAM::Role"
+    Type: AWS::IAM::Role
     Properties:
       RoleName: LambdaEdgeFunctionRoleForInvitePrototype
       Path: "/"
@@ -73,6 +107,15 @@ Resources:
               Service:
                 - "lambda.amazonaws.com"
                 - "edgelambda.amazonaws.com"
+      Policies:
+        - PolicyName: AllowAccessToParameterStore
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: "AllowReadingSSMParameter"
+                Effect: "Allow"
+                Action: "ssm:GetParameter"
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${UserPoolParameters}"
 
   VerifyTokenFunction:
     Type: AWS::Serverless::Function
@@ -83,6 +126,28 @@ Resources:
       Handler: verify.handler
       Timeout: 5
       AutoPublishAlias: live
+
+  GetParametersFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Role: !GetAtt LambdaEdgeFunctionRole.Arn
+      Runtime: python3.9
+      Handler: index.handler
+      Timeout: 5
+      AutoPublishAlias: live
+      InlineCode: !Sub |
+        def handler(event, context): 
+          return {
+              "status": "200",
+              "statusDescription": "OK",
+              "headers": {
+                "content-type": [{
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }]
+              },
+              "body": '{"iss": "${UserPoolURL}", "cid": "${ClientID}"}'
+            }
 
   CloudFrontOAI:
     Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
@@ -123,6 +188,13 @@ Resources:
             TargetOriginId: authorisation-frontend-bucket
             ViewerProtocolPolicy: redirect-to-https
             CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          - PathPattern: f8kjaeUK4920BDiewr7/*
+            TargetOriginId: authorisation-frontend-bucket
+            ViewerProtocolPolicy: https-only
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+            LambdaFunctionAssociations:
+              - EventType: viewer-request
+                LambdaFunctionARN: !Ref GetParametersFunction.Version
           - PathPattern: restricted/*
             TargetOriginId: restricted-website-bucket
             ViewerProtocolPolicy: redirect-to-https

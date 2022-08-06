@@ -4,20 +4,9 @@ import json
 import time
 from jose import jwk, jwt
 from jose.utils import base64url_decode
+import boto3
 
-iss = "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_D7WnK3MWM"
-client_id = "7qusi4nt76n9bsrfr1oiubfjlg"
-
-url = iss + "/.well-known/jwks.json"
-
-with urllib.request.urlopen(url) as resp:
-  key_set = json.loads(resp.read().decode("utf-8"))
-
-keys = dict()
-for k in key_set["keys"]:
-  keys[k["kid"]] = jwk.construct(k)
-
-redirect = {
+response = {
   "status": "302",
   "statusDescription": "Found",
   "headers": {
@@ -27,6 +16,33 @@ redirect = {
     }]
   }
 }
+
+client = boto3.client("ssm")
+parameter_name = "invite-user-pool-parameters"
+try:
+  r = client.get_parameter(Name=parameter_name)
+  params_json = r["Parameter"]["Value"]
+  params = json.loads(params_json)
+  iss = params["iss"]
+  client_id = params["cid"]
+except client.exceptions.ParameterNotFound:
+  response["status"] = "503"
+  response["statusDescription"] = f'parameter "{parameter_name}" was not found in the Parameter Store'
+except client.exceptions.InternalServerError:
+  response["status"] = "503"
+  response["statusDescription"] = f'get_parameter for "{parameter_name}" caused Internal Server Error'
+except Exception as e:
+  response["status"] = "503"
+  response["statusDescription"] = str(e)
+
+url = iss + "/.well-known/jwks.json"
+
+with urllib.request.urlopen(url) as resp:
+  key_set = json.loads(resp.read().decode("utf-8"))
+
+keys = dict()
+for k in key_set["keys"]:
+  keys[k["kid"]] = jwk.construct(k)
 
 login_uri = "/authentication/login.html"
 
@@ -55,8 +71,8 @@ def handler(event, context):
   encoded = f"https://{host}{login_uri}?f=https://{host}{request['uri']}"
 
   if token is None:
-    redirect["headers"]["location"][0]["value"] = encoded
-    return redirect
+    response["headers"]["location"][0]["value"] = encoded
+    return response
       
   try:
     header = jwt.get_unverified_header(token)
@@ -64,50 +80,50 @@ def handler(event, context):
   except jwt.JWTError as e:
     error_string = str(e)
     error_string = error_string.replace(" ", "+")
-    redirect["headers"]["location"][0]["value"] = encoded + f"&error={error_string}"
-    return redirect
+    response["headers"]["location"][0]["value"] = encoded + f"&error={error_string}"
+    return response
 
   parts = str(token).rsplit(".", 1)
   if len(parts) != 2:
-    redirect["headers"]["location"][0]["value"] = encoded + "&error=Wrong+token+format"
-    return redirect
+    response["headers"]["location"][0]["value"] = encoded + "&error=Wrong+token+format"
+    return response
 
   message, encoded_signature = parts
 
   public_key = keys.get(kid, None)
   if public_key is None:
-    redirect["headers"]["location"][0]["value"] = encoded + "&error=Public+key+does+not+match"
-    return redirect
+    response["headers"]["location"][0]["value"] = encoded + "&error=Public+key+does+not+match"
+    return response
 
   decoded_signature = base64url_decode(encoded_signature.encode("utf-8"))
   verified = public_key.verify(message.encode("utf8"), decoded_signature)
   if not verified:
-    redirect["headers"]["location"][0]["value"] = encoded + "&error=Signature+verification+failed"
-    return redirect
+    response["headers"]["location"][0]["value"] = encoded + "&error=Signature+verification+failed"
+    return response
     
   try:
     claims = jwt.get_unverified_claims(token)
   except jwt.JWTError as e:
     error_string = str(e)
     error_string = error_string.replace(" ", "+")
-    redirect["headers"]["location"][0]["value"] = encoded + f"&error={error_string}"
-    return redirect
+    response["headers"]["location"][0]["value"] = encoded + f"&error={error_string}"
+    return response
     
   if claims.get("token_use", None) != "access":
-    redirect["headers"]["location"][0]["value"] = encoded + "&error=Wrong+token+type"
-    return redirect
+    response["headers"]["location"][0]["value"] = encoded + "&error=Wrong+token+type"
+    return response
 
   if claims.get("iss", None) != iss:
-    redirect["headers"]["location"][0]["value"] = encoded + "&error=Wrong+ISS"
-    return redirect
+    response["headers"]["location"][0]["value"] = encoded + "&error=Wrong+ISS"
+    return response
 
   if claims.get("client_id", None) != client_id:
-    redirect["headers"]["location"][0]["value"] = encoded + "&error=Wrong+client"
-    return redirect
+    response["headers"]["location"][0]["value"] = encoded + "&error=Wrong+client"
+    return response
 
   expiration = claims.get("exp", 0)
   if time.time() > expiration:
-    redirect["headers"]["location"][0]["value"] = encoded + "&expired=true"
-    return redirect
+    response["headers"]["location"][0]["value"] = encoded + "&expired=true"
+    return response
 
   return request
