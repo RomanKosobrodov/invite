@@ -9,4 +9,4 @@ region = "us-east-1"
 profile = "sam"
 capabilities = "CAPABILITY_NAMED_IAM"
 image_repositories = []
-parameter_overrides = "UserPoolURL=\"https://cognito-idp.us-east-1.amazonaws.com/us-east-1_D7WnK3MWM\" ClientID=\"7qusi4nt76n9bsrfr1oiubfjlg\""
+parameter_overrides = "UserPoolID=\"us-east-1_D7WnK3MWM\"" "UserPoolURL=\"https://cognito-idp.us-east-1.amazonaws.com/us-east-1_D7WnK3MWM\" ClientID=\"7qusi4nt76n9bsrfr1oiubfjlg\""

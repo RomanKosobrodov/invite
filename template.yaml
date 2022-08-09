@@ -9,15 +9,23 @@ Metadata:
       - Label:
           default: "Cognito User Pool"
         Parameters:
+          - UserPoolID
           - UserPoolURL
           - ClientID
     ParameterLabels:
+      UserPoolID:
+        default: "User Pool ID"
       UserPoolURL:
         default: "User Pool URL"
       ClientID:
         default: "Client ID"
 
 Parameters:
+  UserPoolID:
+    Type: String
+    Description: >
+      ID of exiting Cognito User Pool
+    Default: "us-east-1_D7WnK3MWM"
   UserPoolURL:
     Type: String
     Description: >
@@ -87,7 +95,7 @@ Resources:
       Description: User Pool Parameters (URL and Client ID) as JSON encoded string
       Name: invite-user-pool-parameters
       Type: String
-      Value: !Sub "{'iss': '${UserPoolURL}', 'cid': '${ClientID}'}"
+      Value: !Sub '{"iss": "${UserPoolURL}", "cid": "${ClientID}"}'
 
   LambdaEdgeFunctionRole:
     Type: AWS::IAM::Role
@@ -146,7 +154,7 @@ Resources:
                   "value": "application/json"
                 }]
               },
-              "body": '{"iss": "${UserPoolURL}", "cid": "${ClientID}"}'
+              "body": '{"upid": "${UserPoolID}", "cid": "${ClientID}"}'
             }
 
   CloudFrontOAI:

@@ -17,7 +17,7 @@ response = {
   }
 }
 
-client = boto3.client("ssm")
+client = boto3.client(service_name="ssm", region_name="us-east-1")
 parameter_name = "invite-user-pool-parameters"
 try:
   r = client.get_parameter(Name=parameter_name)
